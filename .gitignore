@@ -1,0 +1,4 @@
+color_inference/__pycache__
+color_inference/images/
+color_inference/logs/
+color_inference/models/

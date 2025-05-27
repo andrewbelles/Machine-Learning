@@ -8,9 +8,11 @@ def main():
     parser = ap.ArgumentParser()
     parser.add_argument("--hue", type=float, required=True, help="Input hue to infer [0,360]")
     parser.add_argument("--image", required=True, help="Path to PNG")
+    parser.add_argument("--model", required=False, default="beta_color_detector", help="Path to Model")
     args = parser.parse_args()
 
-    model = tf.keras.models.load_model("models/beta_color_detector.keras", compile=False)
+    path_to_model = "models/" + args.model + ".keras"
+    model = tf.keras.models.load_model(path_to_model, compile=False)
 
     patch = load_image(args.image)[None, ...]
     hue = tf.constant([[float(args.hue/360.0)]], tf.float32)

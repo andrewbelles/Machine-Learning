@@ -1,17 +1,34 @@
 import tensorflow as tf 
-import tensorflow_probability as tfp 
+import tensorflow_probability as tfp
 
 from keras.saving import register_keras_serializable
 
 tfd, tfb = tfp.distributions, tfp.bijectors
 tf.keras.utils.set_random_seed(31)
 bce = tf.keras.losses.BinaryCrossentropy()
+TOL  = 1e-3
+CONC = 20.0
 
-def loss_function(y_true, alpha_beta):
+def bce_loss(y_true, y_pred):
+    y_true = tf.reshape(y_true, (-1,1))
+    return bce(y_true, y_pred)
+
+def beta_loss(y_true, alpha_beta):
     y = tf.reshape(y_true, (-1,1))
+    y = tf.clip_by_value(y, 1e-4, 1.0 - 1e-4)
+
     alpha, beta = tf.split(alpha_beta, 2, axis=-1)
-    p_hat = alpha / (alpha + beta)
-    return bce(y, p_hat)
+    alpha = tf.clip_by_value(alpha + 1.0, TOL, CONC)
+    beta  = tf.clip_by_value(beta + 1.0, TOL, CONC)
+
+    # Get clipped beta distribution and compute negative log likelihood 
+    beta_dist = tfd.Beta(alpha, beta)
+    nll = -tf.reduce_mean(beta_dist.log_prob(y))
+
+    kl = tf.reduce_mean(tfd.kl_divergence(beta_dist,
+                                         tfd.Beta(concentration1=1.0,
+                                                  concentration0=1.0)))
+    return nll + TOL * kl
 
 # Metric for Binary Accuracy on Mean
 class MeanBinaryAccuracy(tf.keras.metrics.Metric):
@@ -45,24 +62,28 @@ class MeanAUC(tf.keras.metrics.AUC):
 @register_keras_serializable(package="color")
 class ColorModel(tf.keras.Model):
 
-    def __init__(self, hidden_dims=(32,64), hue_embed_dim=8, **kw):
+    def __init__(self, hidden_dims=(32,64,128), hue_embed_dim=(8,16,32), **kw):
         super().__init__(**kw)
-        
-        # 2D CNN 
+
+        # 3 Layer convolutional backbone  
         self.backbone = tf.keras.Sequential([
             tf.keras.layers.Conv2D(hidden_dims[0], 3, activation='relu'),
             tf.keras.layers.MaxPool2D(),
             tf.keras.layers.Conv2D(hidden_dims[1], 3, activation='relu'),
+            tf.keras.layers.MaxPool2D(),
+            tf.keras.layers.Conv2D(hidden_dims[2], 3, activation='relu'),
             tf.keras.layers.GlobalAveragePooling2D()
         ])
 
         self.hue_embed = tf.keras.Sequential([
-            tf.keras.layers.Dense(hue_embed_dim*4, activation='relu'),
-            tf.keras.layers.Dense(hue_embed_dim*2, activation='relu'),
-            tf.keras.layers.Dense(hue_embed_dim, activation='relu'),
+            tf.keras.layers.Dense(hue_embed_dim[2], activation='relu'),
+            tf.keras.layers.Dense(hue_embed_dim[1], activation='relu'),
+            tf.keras.layers.Dense(hue_embed_dim[0], activation='relu'),
         ])
 
-        self.alpha_beta = tf.keras.layers.Dense(2, activation=tf.nn.softplus, bias_initializer='zeros')
+        self.head = tf.keras.layers.Dense(2, activation=None,
+                                          bias_initializer="zeros")
+        self.clip = CONC 
 
     def call(self, inputs, training=False):
         img = inputs["img"]
@@ -72,4 +93,12 @@ class ColorModel(tf.keras.Model):
         f_hue = self.hue_embed(hue)
 
         feats = tf.concat([f_img, f_hue], axis=-1)
-        return self.alpha_beta(feats)
+        alpha_beta = self.head(feats) 
+        if self.head(feats).shape[-1] == 1:
+            return self.head(feats)
+        
+        alpha_beta = tf.nn.softplus(self.head(feats)) + 1.0
+        return tf.clip_by_value(alpha_beta, 1.0, self.clip)
+
+    def set_head(self, new_head):
+        self.head = new_head

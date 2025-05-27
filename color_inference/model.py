@@ -62,8 +62,11 @@ class MeanAUC(tf.keras.metrics.AUC):
 @register_keras_serializable(package="color")
 class ColorModel(tf.keras.Model):
 
-    def __init__(self, hidden_dims=(32,64,128), hue_embed_dim=(8,16,32), **kw):
+    def __init__(self, head_type='beta', hidden_dims=(32,64,128), hue_embed_dim=(8,16,32), **kw):
         super().__init__(**kw)
+        self.head_type     = head_type
+        self.hidden_dims   = tuple(hidden_dims)
+        self.hue_embed_dim = tuple(hue_embed_dim)
 
         # 3 Layer convolutional backbone  
         self.backbone = tf.keras.Sequential([
@@ -81,10 +84,27 @@ class ColorModel(tf.keras.Model):
             tf.keras.layers.Dense(hue_embed_dim[0], activation='relu'),
         ])
 
-        self.head = tf.keras.layers.Dense(2, activation=None,
-                                          bias_initializer="zeros")
+        if self.head_type == "sigmoid":
+            self.head = tf.keras.layers.Dense(1, activation="sigmoid")
+        elif self.head_type == "beta":
+            # beta head: two conc. params, clipped
+            self.head = tf.keras.layers.Dense(2, activation=tf.nn.softplus)
+
         self.clip = CONC 
 
+    def get_config(self):
+            config = super().get_config()
+            config.update({
+                'head_type': self.head_type,
+                'hidden_dims': list(self.hidden_dims),
+                'hue_embed_dim': list(self.hue_embed_dim),
+            })
+            return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+    
     def call(self, inputs, training=False):
         img = inputs["img"]
         hue = inputs["hue"]
@@ -93,12 +113,11 @@ class ColorModel(tf.keras.Model):
         f_hue = self.hue_embed(hue)
 
         feats = tf.concat([f_img, f_hue], axis=-1)
-        alpha_beta = self.head(feats) 
-        if self.head(feats).shape[-1] == 1:
-            return self.head(feats)
-        
-        alpha_beta = tf.nn.softplus(self.head(feats)) + 1.0
-        return tf.clip_by_value(alpha_beta, 1.0, self.clip)
+
+        out = self.head(feats)   # one call
+        if self.head_type == "beta":
+            out = tf.clip_by_value(out + 1.0, 1.0, self.clip)
+        return out
 
     def set_head(self, new_head):
         self.head = new_head

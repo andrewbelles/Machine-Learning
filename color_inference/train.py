@@ -1,4 +1,5 @@
-import os 
+import os
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 os.environ["ABSL_MIN_LOG_LEVEL"] = "3"
 import argparse as ap
@@ -8,14 +9,21 @@ import tensorflow as tf
 import image_pipeline as ppl
 import model as cm
 
-def get_model(new: bool) -> tf.keras.Model:
-    if new:
-        model = cm.ColorModel()
-    else:
-        model = tf.keras.models.load_model(
-            "models/beta_color_detector.keras",
-            compile=False)          # already compiled previously
+def get_model(new: bool, head_type: str, model_path: str) -> tf.keras.Model:
 
+    if new:
+        model = cm.ColorModel(head_type=head_type)
+    else:
+        model = tf.keras.models.load_model(model_path, compile=False, custom_objects={'ColorModel': cm.ColorModel})
+    
+    if head_type == "sigmoid":
+        loss = cm.bce_loss            
+        metrics   = [tf.keras.metrics.BinaryAccuracy(name="acc")]
+    else:
+        loss = cm.beta_loss           
+        metrics   = [cm.MeanBinaryAccuracy(), cm.MeanAUC()]
+
+    model.compile(optimizer="adam", loss=loss, metrics=metrics)
     return model
 
 def main() -> None:
@@ -23,7 +31,11 @@ def main() -> None:
     parser = ap.ArgumentParser()
     parser.add_argument("--epochs", type=int, default=50, help="# of training epochs")
     parser.add_argument("--new", type=bool, default=False, help="Indicate whether a new model should be trained")
+    parser.add_argument("--model", default="beta", help="Indicate head of model to train")
+    parser.add_argument("--early", default=False, help="Denote early stop callback being active")
     args = parser.parse_args()
+
+    model_path = "models/" + args.model + "_color_detector.keras"
 
     # Fetch batched datasets  
     training, validation = ppl.create_dataset(
@@ -33,51 +45,15 @@ def main() -> None:
             validation_split=0.2)
 
     # Get model
-    model = get_model(args.new)
+    model = get_model(args.new, args.model, model_path)
 
-    if args.new is True:
-        # Get sigmoid model and run for small number of epochs
-        sig_model = cm.ColorModel()                 
-        sig_model.set_head(tf.keras.layers.Dense(1, activation='sigmoid'))
-        sig_model.compile(optimizer='adam', 
-                          loss=cm.bce_loss,
-                          metrics=[tf.keras.metrics.BinaryAccuracy(),
-                                   tf.keras.metrics.AUC()])
-
-        sig_model.fit(training, epochs=25)
-
-        # Get weights from sigmoid model
-        backbone_weights  = sig_model.backbone.get_weights()
-        hue_embed_weights = sig_model.hue_embed.get_weights()
-        w_sig, b_sig      = sig_model.head.get_weights()  
-
-        # Manually build layers 
-        model.backbone.build((None, 128, 128, 3))
-        model.hue_embed.build((None, 1))
-        model.head.build((None, model.backbone.output_shape[-1] + model.hue_embed.output_shape[-1]))
-
-        # Set weights
-        model.backbone.set_weights(backbone_weights)
-        model.hue_embed.set_weights(hue_embed_weights)
-
-        k = 1.3
-        p_kernel = tf.nn.sigmoid(w_sig)
-        p_bias   = tf.nn.sigmoid(b_sig)
-
-        W_alpha = k * p_kernel
-        W_beta  = k * (1.0 - p_kernel)
-        b_alpha = k * p_bias
-        b_beta  = k * (1.0 - p_bias)
-
-        beta_kernel = tf.concat([W_alpha, W_beta], axis=-1)
-        beta_bias = tf.concat([b_alpha, b_beta], axis=-1)
-        model.head.set_weights([beta_kernel, beta_bias])
-
-    # lower learning rate? 
-    opt = tf.keras.optimizers.Adam(1e-4)
-    model.compile(optimizer=opt,
-                loss=cm.beta_loss,
-                metrics=[cm.MeanBinaryAccuracy(), cm.MeanAUC()])
+    early_cb = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss',
+        min_delta=1e-2,
+        patience=3,
+        mode='auto',
+        restore_best_weights=True
+    )
 
     # Callback for tensorboard
     tensorboard_cb = tf.keras.callbacks.TensorBoard(
@@ -85,8 +61,10 @@ def main() -> None:
         histogram_freq=1,
     )
 
-    model.fit(training, validation_data=validation, epochs=args.epochs, callbacks=[tensorboard_cb])
-    model.save("models/beta_color_detector.keras")  # Save model 
+    callbacks = [tensorboard_cb] + ([early_cb] if args.early else [])
+
+    model.fit(training, validation_data=validation, epochs=args.epochs, callbacks=callbacks)
+    model.save(model_path)  # Save model 
 
 if __name__ == "__main__":
     main()

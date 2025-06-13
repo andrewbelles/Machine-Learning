@@ -1,4 +1,12 @@
-color_inference/__pycache__
-color_inference/images/
-color_inference/logs/
-color_inference/models/
+
+# From color-inference 
+**/__pycache__
+**/images/
+**/logs
+**/models/
+
+# Any environment variable 
+**/*.env
+
+# Any database file 
+**/*.db

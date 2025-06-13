@@ -19,7 +19,6 @@ function generate_color_dataset(output_dir, sample_count, delta)
     csv_file = fullfile(output_dir, 'labels.csv');
     optr     = fopen(csv_file, 'w');
     fprintf(optr, "filename,hue,label\n");
-    
  
     spd  = ceil(sample_count/3);       % Samples per difficulty tier 
     dims = [256, 256];                 % 256x256 px 

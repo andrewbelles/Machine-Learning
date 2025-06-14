@@ -13,7 +13,6 @@ load_dotenv()
 
 API_KEY  = os.getenv("ATTOM_API_KEY")
 BASE_URL = os.getenv("ATTOM_BASE_URL")
-print(f"Key: {API_KEY} Url: {BASE_URL}")
 HEADERS = {
         "accept": "application/json",
         "apikey": API_KEY
@@ -27,7 +26,7 @@ class AttomClient:
         self.calls_made  = 0 
         self.client_time = time.time() 
         # Intrinsic db information and scheduler
-        self.engine     = create_engine("sqlite:///attom_data.db")
+        self.engine     = create_engine("sqlite:///data//attom_data.db")
         self.scheduler = BackgroundScheduler(timezone="America/Chicago")
 
 

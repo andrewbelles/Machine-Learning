@@ -1,22 +1,25 @@
 import time as t 
 import requests
+import pandas as pd
 from sqlalchemy import create_engine  
 from apscheduler.schedulers.background import BackgroundScheduler
 
-BASE_URL = ""
-
 class ParentClient: 
-    def __init__(self, rate_limit=10):
+
+    def __init__(self, db_path: str, rate_limit=200):
         # Limit to 6 calls a min < 10k/day 
         self.rate_limit  = rate_limit
         self.calls_made  = 0
-        self.time = t.time() 
-        self.engine      = create_engine("sqlite:///data//noaa_data.db")
+        self.client_time = t.time() 
+        self.engine      = create_engine(f"sqlite:///{db_path}")
         self.scheduler   = BackgroundScheduler(timezone="America/Chicago")
+        self.session     = requests.Session()
+
 
     def _throttle(self):
         current = t.time()
         elapsed = current - self.client_time 
+        print(f"{elapsed}...")
 
         # Rate and time checks
         if elapsed >= 60: 
@@ -30,9 +33,17 @@ class ParentClient:
 
         self.calls_made += 1
 
-    def _get(self, endpoint: str, headers: dict, params: dict) -> dict:
+    def _get(self, base_url: str, endpoint: str, headers: dict, params: dict) -> dict:
         self._throttle()
-        url = f"{BASE_URL}{endpoint}"
-        resp = requests.get(url, headers=headers, params=params, timeout=10)
+        url = f"{base_url}{endpoint}"
+        print(f"url: {url}")
+        resp = self.session.get(url, headers=headers, params=params, timeout=180)
+        print(f"GET {resp.url}: {resp.status_code}")
+
         resp.raise_for_status()
         return resp.json()
+
+
+    def _save(self, df: pd.DataFrame, table: str):
+        df["fetched_at"] = t.time()
+        df.to_sql(table, con=self.engine, if_exists="replace", index=False)

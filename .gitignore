@@ -1,12 +1,15 @@
+**/__pycache__/
 
 # From color-inference 
-**/__pycache__
-**/images/
-**/logs
-**/models/
+images/
+logs/
+models/
 
 # Any environment variable 
-**/*.env
+*.env
 
 # Any database file 
-**/*.db
+*.db
+
+data/
+climdiv/

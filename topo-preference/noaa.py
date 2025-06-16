@@ -1,11 +1,11 @@
 import os, pandas as pd, us, glob, re, numpy as np
 from requests.exceptions import HTTPError
-import api_client as ac
+import clientbackbone as cb
 from dotenv import load_dotenv
 import time as t
 
 load_dotenv()
-class NoaaClient(ac.ParentClient): 
+class NoaaClient(cb.ParentClient): 
 
     def __init__(self, key: str, url: str):
         # Limit to 6 calls a min < 10k/day 
@@ -19,7 +19,7 @@ class NoaaClient(ac.ParentClient):
         executed = HTTPError()
         for attempt in range(3):
             try:
-                return self._get(url, endpoint, headers, params)
+                return self._get(url, params, endpoint, headers)
             except HTTPError as e: 
                 status = e.response.status_code if e.response else None 
                 if status is not None and 500 <= status < 600: 
@@ -32,7 +32,7 @@ class NoaaClient(ac.ParentClient):
         raise executed
 
     def fetch_normals(self, state_code: str) -> pd.DataFrame:
-        fips = us.states.lookup(state_code).fips
+        fips = us.states.lookup(state_code).fips # type: ignore 
         raw = self._get_retry(
             self.url, "/data", self.HEADERS,
             {
@@ -102,8 +102,7 @@ class NoaaClient(ac.ParentClient):
             )
             df["month"]    = df["month"].astype(int)
             df["date"]     = pd.to_datetime(
-                dict(year=2000, month=df["month"], day=1)
-            )
+                dict(year=2000, month=df["month"], day=1)) # type: ignore 
             df["datatype"] = datatype
             records.append(df[["div","datatype","date","value"]])
 
@@ -143,8 +142,7 @@ class NoaaClient(ac.ParentClient):
             df = df[df["year"].between(1895,2100)]
             df["month"]    = df["month"].astype(int)
             df["date"]     = pd.to_datetime(
-                df[["year","month"]].assign(day=1)
-            )
+                             df[["year","month"]].assign(day=1)) # type: ignore
             df["datatype"] = datatype
             records.append(df[["div","datatype","date","value","month"]])
 
@@ -185,10 +183,10 @@ class NoaaClient(ac.ParentClient):
                     wide_n[col] = np.nan
             flat_normals = wide_n[["TMIN", "TMAX", "PRCP"]].to_numpy().ravel()
 
-            fips = us.states.lookup(state).fips
+            fips = us.states.lookup(state).fips # type: ignore 
             divs = self.div_map.get(fips, [])
             sub  = all_climdivs[all_climdivs["div"].isin(divs)]
-            sub["month"] = sub["date"].dt.month
+            sub["month"] = sub["date"].dt.month # type: ignore 
             wide_c = sub.pivot_table(
                     index="month", columns="datatype", values="value", aggfunc="mean"
             ).reindex(index=range(1,13))

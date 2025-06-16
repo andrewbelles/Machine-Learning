@@ -33,11 +33,14 @@ class ParentClient:
 
         self.calls_made += 1
 
-    def _get(self, base_url: str, endpoint: str, headers: dict, params: dict) -> dict:
+    def _get(self, base_url: str, params: dict, endpoint: str="", headers: dict={}) -> dict:
         self._throttle()
         url = f"{base_url}{endpoint}"
         print(f"url: {url}")
-        resp = self.session.get(url, headers=headers, params=params, timeout=180)
+        if headers == {} and endpoint == "":
+            resp = self.session.get(url, params=params, timeout=30)
+        else: 
+            resp = self.session.get(url, headers=headers, params=params, timeout=180)
         print(f"GET {resp.url}: {resp.status_code}")
 
         resp.raise_for_status()

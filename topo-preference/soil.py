@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, Optional
 import pandas as pd, numpy as np
 import clientbackbone as cb
 
@@ -8,33 +8,38 @@ from shapely.ops import unary_union
 from shapely.geometry import Point
 import sqlite3
 
-
 class SoilClient(cb.ParentClient):
 
     def __init__(self, url: str):
-        super().__init__("data/soil_data.db", 4)
+        super().__init__("data/soil.db", 4)
         self.url     = url.rstrip("/")
         self.fields  = ["clay","silt","sand","soc","phh2o","bdod"]
+        self.divisor = {"phh2o": 10, "soc": 10, "bdod": 10}
     
-    def load_state_geometry(self, state: str, path="data/attom_data.db") -> gpd.GeoDataFrame:
+    # Pulls wkt bondary data from attom api data
+    def load_state_geometry(self, state: str, path="data/attom.db") -> gpd.GeoDataFrame:
         attom = sqlite3.connect(path)
         df    = pd.read_sql(f"SELECT name, bound_wkt FROM state_{state}_boundary", attom)
         attom.close()
 
+        # Gets geometry from wkt file 
         df["geometry"] = df["bound_wkt"].apply(
             lambda w: gpd.GeoSeries.from_wkt([w])[0] if w else None
         )
+        # Takes union of all lat lon tuples 
         geometry = unary_union(df.geometry.dropna().tolist())
         return gpd.GeoDataFrame([{"code": state, "geometry": geometry}], crs="EPSG:4326")
 
-    def fetch_point(self, lat, lon) -> Optional[dict]:
+    # Grabs data for an individual lat lon tuple 
+    def fetch_point(self, lat: float, lon: float ) -> Optional[dict]:
         params = {
             "lat": lat, 
             "lon": lon,
             "property": self.fields, 
             "depth": [
                 "0-5cm","0-30cm","5-15cm","15-30cm",
-                "30-60cm","60-100cm","100-200cm"]
+                "30-60cm","60-100cm","100-200cm"],
+            "value": ["mean","Q0.05","Q0.5","Q0.95","uncertainty"]
         }
         raw = self._get(self.url, params)
         return raw 
@@ -61,6 +66,23 @@ class SoilClient(cb.ParentClient):
 
         return sampled
 
+    def flatten(self, data: dict) -> Dict[str, float]:
+        result: Dict[str, float] = {}
+        layers = data["properties"]["layers"]
+
+        for layer in layers: 
+            name = layer["name"]
+            div  = self.divisor.get(name, 1)
+
+            for depth in layer["depths"]:
+                rang   = depth["range"]
+                values = depth["values"]
+                for stat in ["mean","Q0.05","Q0.5","Q0.95","uncertainty"]:
+                    key = f"{name}_{rang}_{stat}"
+                    raw = values.get(stat)
+                    result[key] = None if raw is None else raw / div
+        return result 
+
     def fetch_for_state(self, state: str):
         state_gdf = self.load_state_geometry(state)
         if state_gdf.empty:
@@ -72,17 +94,12 @@ class SoilClient(cb.ParentClient):
         for point in points: 
             lat, lon = point.y, point.x 
             data = self.fetch_point(lat, lon)
-            flat = {
-                'lat': lat, 
-                'lon': lon
-            }
             if data is None: 
                 raise ValueError(f"No data for {state}...")
 
-            for field in self.fields:
-                    flat[field] = (data['properties']['layers'][field]['depths']
-                                    [0]['values'].get('mean'))   
-            records.append(flat)
+            record = {"lat": lat, "lon": lon, "state": state}
+            record.update(self.flatten(data))
+            records.append(record)
 
         return pd.DataFrame.from_records(records)
 
@@ -91,9 +108,7 @@ class SoilClient(cb.ParentClient):
         all_dfs = []
         for state in states:
             print(f"Fetching {state}...")
-            df = self.fetch_for_state(state)
-            df['state'] = state 
-            all_dfs.append(df)
+            all_dfs.append(self.fetch_for_state(state))
 
         df_final = pd.concat(all_dfs, ignore_index=True)
         self._save(df_final, "state_soil_raw")

@@ -9,7 +9,6 @@ python pca_tool.py
     --static [col1, col2]
 '''
 
-
 def run_pca(X: tf.Tensor, n: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     '''
     Centers some information in tensor X and 
@@ -68,7 +67,7 @@ def main():
     numeric_df = numeric_df.apply(lambda col: col.fillna(col.mean()))
 
     # Get values from pca
-    scores, weights, var = run_pca(numeric_df.values, n=args.N)
+    scores, weights, var = run_pca(numeric_df.values, n=args.N) #type: ignore 
     cols = [f"PC{i+1}" for i in range(args.N)]
 
     # PCA resulting dataset 

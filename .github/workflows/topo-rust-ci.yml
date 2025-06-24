@@ -7,6 +7,10 @@ on:
 #    paths:
 #      - "topo-preference/clients/**"
 
+env:
+  NOAA_API_KEY: ${{ secrets.NOAA_API_KEY }}
+  NOAA_BASE_URL: ${{ secrets.NOAA_BASE_URL }}
+
 jobs:
   rust: 
     runs-on: ubuntu-latest

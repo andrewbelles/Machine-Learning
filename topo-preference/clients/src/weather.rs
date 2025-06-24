@@ -53,7 +53,7 @@ impl WeatherClient {
         dotenv().ok();
         // Get environment variables 
         let api_key   = env::var("NOAA_API_KEY")
-            .context("Missing RAPID_API_KEY in environment")?;
+            .context("Missing NOAA_API_KEY in environment")?;
         println!("key: {}", api_key);
 
         let base_url  = env::var("NOAA_BASE_URL")

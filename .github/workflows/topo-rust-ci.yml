@@ -25,9 +25,9 @@ jobs:
         fetch-depth: 1
 
     - name: Install Rust toolchain
-      uses: actions/setup-rust@v2 
+      uses: actions-rust-lang/setup-rust-toolchain@v1 
       with: 
-        rust-version: stable 
+        toolchain: stable 
         cache: true 
 
     - name: cargo build 

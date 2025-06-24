@@ -1,4 +1,6 @@
 mod weather; 
+mod crime;
+
 use clients::base::*; 
 //use clients::client::*;
 use crate::weather::*;
@@ -56,7 +58,7 @@ async fn main() -> Result<()> {
     ]; 
 
     // Run parallel api calls 
-    let _ = run_clients(clients, &ALL_STATES, 10, 5);
+    let _ = run_clients(clients, &ALL_STATES_ABBR, 10, 5);
 
     Ok(())
 }

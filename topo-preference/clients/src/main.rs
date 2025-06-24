@@ -4,6 +4,7 @@ mod crime;
 use clients::base::*; 
 //use clients::client::*;
 use crate::weather::*;
+use crate::crime::*;
 use std::{sync::{Arc, Mutex, mpsc}, thread};
 use anyhow::Result;
 use futures::executor::block_on;
@@ -55,10 +56,11 @@ async fn main() -> Result<()> {
     // Push clients into Array of updater objects 
     let clients: Vec<Box<dyn Updater + Send>> = vec![
         Box::new(WeatherClient::new(":memory:")?),
+        Box::new(CrimeClient::new(":memory:")?),
     ]; 
 
     // Run parallel api calls 
-    let _ = run_clients(clients, &ALL_STATES_ABBR, 10, 5);
+    let _ = run_clients(clients, &ALL_STATES_ABBR, 8, 5);
 
     Ok(())
 }

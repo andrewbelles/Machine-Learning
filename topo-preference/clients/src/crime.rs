@@ -8,7 +8,6 @@ use std::env;
 use serde::{Deserialize, Serialize};
 use rusqlite::params;
 use async_trait::async_trait;
-use urlencoding::encode;
 use chrono::NaiveDate;
 use reqwest::Url;
 use std::collections::HashMap;
@@ -202,7 +201,10 @@ impl Updater for CrimeClient {
             let mut agencies = self.fetch_agencies(state).await?;
             agencies.sort_by_key(|a| {
                 NaiveDate::parse_from_str(&a.start_date, "%Y-%m-%d")
-                    .unwrap_or_else(|_| NaiveDate::from_ymd(9999, 12, 31))
+                    .unwrap_or_else(|_| {
+                        NaiveDate::from_ymd_opt(9999, 12, 31)
+                            .expect("invalid date format")
+                    })
             });
 
             for agency in agencies.into_iter().take(limit) {

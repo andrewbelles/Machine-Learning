@@ -207,11 +207,11 @@ impl WeatherClient {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl Updater for WeatherClient {
     async fn update(&mut self, states: &[&str], limit: usize) -> Result<()> {
         for &state in states {
-            let stations = self.fetch_stations(state, "NORMAL_MLY", 10)
+            let stations = self.fetch_stations(state, "NORMAL_MLY", limit)
                 .await
                 .context("Failed to look up stations")?;
 
@@ -237,30 +237,26 @@ impl Updater for WeatherClient {
                     .filter_map(|n| n.prcp)
                     .sum::<f32>();
 
-                tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-                    let transaction = self.base.conn.transaction()
-                        .context("Failed to open transaction for extremes")?;
+                let transaction = self.base.conn.transaction()
+                    .context("Failed to open transaction for extremes")?;
 
-                    let metrics = [
-                        ("max_tmax", max_tmax),
-                        ("min_tmin", min_tmin),
-                        ("sum_prcp", sum_prcp)
-                    ];
+                let metrics = [
+                    ("max_tmax", max_tmax),
+                    ("min_tmin", min_tmin),
+                    ("sum_prcp", sum_prcp)
+                ];
 
-                    for &(metric, value) in &metrics {
-                        transaction.execute(
-                            "REPLACE INTO extremes (station, state, metric, value) VALUES (?1, ?2, ?3, ?4)",
-                            params![&station.id, &state, &metric, &value]
-                        )
-                        .context("Failed to write to extremes record")?;
-                    }
+                for &(metric, value) in &metrics {
+                    transaction.execute(
+                        "REPLACE INTO extremes (station, state, metric, value) VALUES (?1, ?2, ?3, ?4)",
+                        params![&station.id, &state, &metric, &value]
+                    )
+                    .context("Failed to write to extremes record")?;
+                }
 
-                    transaction
-                        .commit()
-                        .context("Failed to commit extremes transaction")?;
-                    Ok(())
-                })
-                .await??;
+                transaction
+                    .commit()
+                    .context("Failed to commit extremes transaction")?;
             }
         }
         Ok(())

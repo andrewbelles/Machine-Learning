@@ -6,7 +6,7 @@ use futures::stream::{self, StreamExt};
 use anyhow::Result;
 
 // Trait that all clients implement as a main interface to pull state data
-#[async_trait]
+#[async_trait(?Send)]
 pub trait Updater {
     async fn update(&mut self, states: &[&str], limit: usize) -> Result<()>;
 }

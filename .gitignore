@@ -1,4 +1,5 @@
 **/__pycache__/
+**/target/ 
 
 # From color-inference 
 images/
@@ -6,10 +7,13 @@ logs/
 models/
 
 # Any environment variable 
-*.env
+.env
+Cargo.lock
 
 # Any database file 
-*.db
+.db
 
 data/
 climdiv/
+
+.topo

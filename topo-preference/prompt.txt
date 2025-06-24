@@ -1,0 +1,17 @@
+
+These are the target dependencies of this project. Whenever we need a new dependency please ensure you make note of why it is needed and the specific version that should be installed. Note that I want to write this in Rust, so consider the analogous packages
+
+python-dotenv>=1.0.0
+requests>=2.28.0
+pandas>=1.5.0
+SQLAlchemy>=2.0.0
+APScheduler>=3.10.0
+psycopg2-binary>=2.9.0
+numpy>=1.24.0
+pandas>=1.5.0
+geopandas>=0.13.0
+shapely>=2.0.0
+us>=2.2.0
+tensorflow>=2.19.0
+
+The goal of the first stage of this project is to make a rust program that setups multiple clients to talk to different apis, get large datasets from the api, and store locally in distinct tables in a local sqlite3 database. Any time you present information ensure that it is factually correct and give a brief annotation of the source you derived it from. We want to compile all the data in a easily maintained since .db file.  

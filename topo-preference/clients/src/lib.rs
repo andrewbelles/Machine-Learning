@@ -2,13 +2,13 @@ pub mod base {
 
 use phf::phf_map;
 use async_trait::async_trait;
-use futures::stream::{self, StreamExt};
+// use futures::stream::{self, StreamExt};
 use anyhow::Result;
 
 // Trait that all clients implement as a main interface to pull state data
 #[async_trait(?Send)]
 pub trait Updater {
-    async fn update(&mut self, states: &[&str], limit: usize) -> Result<()>;
+    async fn update(&mut self, states: &'static [&'static str], limit: usize) -> Result<()>;
 }
 #[derive(Clone, Copy, Debug)]
 pub struct StateInfo {

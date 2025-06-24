@@ -1,0 +1,45 @@
+on: 
+  push:
+    branches: [ main ]
+    paths: 
+      - "topo-preference/clients/**"
+  pull_request:
+    paths:
+      - "topo-preference/clients/**"
+
+jobs:
+  rust: 
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: topo-preference/clients
+
+    steps:
+    - name: Checkout Clients 
+      uses: actions/checkout@v4 
+      with: 
+        sparse-checkout: |
+          topo-preference/clients 
+        sparse-checkout-cone-mode: false
+        fetch-depth: 1
+
+    - name: Install Rust toolchain
+      uses: actions/setup-rust@v2 
+      with: 
+        rust-version: stable 
+        cache: true 
+
+    - name: cargo build 
+      if: >
+        github.event_name != 'workflow_dispatch' || 
+        inputs.build_type == 'release'
+      run: cargo build --release 
+
+    - name: cargo check 
+      run: cargo check --all-features --all-targets --quiet 
+
+    - name: cargo test 
+      env: 
+        RUST_BACKTRACE: 1
+      run: cargo test --all-features --all-targets -- --nocapture

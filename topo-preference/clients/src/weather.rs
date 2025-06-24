@@ -209,7 +209,7 @@ impl WeatherClient {
 
 #[async_trait(?Send)]
 impl Updater for WeatherClient {
-    async fn update(&mut self, states: &[&str], limit: usize) -> Result<()> {
+    async fn update(&mut self, states: &'static [&'static str], limit: usize) -> Result<()> {
         for &state in states {
             let stations = self.fetch_stations(state, "NORMAL_MLY", limit)
                 .await
@@ -267,6 +267,8 @@ impl Updater for WeatherClient {
 mod tests {
     use super::*;
 
+    static TEST_STATES: &[&str] = &["DE", "CA"];
+
     // Tests basic client interfaces 
     #[tokio::test]
     async fn test_noaa_basic() {
@@ -300,11 +302,10 @@ mod tests {
             .expect("extremes table should exist");
         assert_eq!(c, 0, "extremes table should start empty");
 
-        let test_states = ["DE", "CA"];
-        client.update(&test_states, 10).await?;
+        client.update(TEST_STATES, 10).await?;
 
         let metrics = ["max_tmax", "min_tmin", "sum_prcp"];
-        for &state in test_states.iter() {
+        for &state in TEST_STATES {
             for &metric in &metrics {
                 let c: i64 = client.base.conn 
                     .query_row(

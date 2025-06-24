@@ -1,11 +1,11 @@
 on: 
   push:
     branches: [ main ]
-    paths: 
-      - "topo-preference/clients/**"
+#    paths: 
+#     - "topo-preference/clients/**"
   pull_request:
-    paths:
-      - "topo-preference/clients/**"
+#    paths:
+#      - "topo-preference/clients/**"
 
 jobs:
   rust: 
